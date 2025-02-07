@@ -6,6 +6,10 @@
 import numpy as np
 from obspy.core import UTCDateTime as UT
 
+# to fix:
+# use delays that imply earthquakes are only after, not before
+# vectorize calculate delays
+
 
 def mbc(lons,lats,deps,mags,times,ids,min_mag=3):
 	"""
@@ -93,8 +97,9 @@ def one_mbc(lons,lats,deps,mags,times,ids,assignments):
 	# calculate time delays
 	delays    = calculate_delays(times,t_time)
 
+
 	# assign new ids
-	assignments[(assignments==0)&(distances<=space_window) & (delays<=time_window)] = t_id
+	assignments[(assignments==0)&(distances<=space_window)&(delays<=time_window)&(delays>0)] = t_id
 	# assign the mainshock 
 	assignments[max_arg] = t_id	
 
@@ -124,7 +129,7 @@ def window(magnitude):
 	print('space window = ',space_window, 'time window = ',time_window)
 	return space_window, time_window 
 
-def calculate_distances(lats,lons,deps,ref_lat,ref_lon,ref_dep):
+def calculate_distances_old(lats,lons,deps,ref_lat,ref_lon,ref_dep):
 	"""
 	calculate the distaces between hypocenters, using the
 	flat earth approximation
@@ -138,6 +143,27 @@ def calculate_distances(lats,lons,deps,ref_lat,ref_lon,ref_dep):
 	
 	a         = np.sqrt(dlat**2 + (np.cos(mlat)*dlon)**2  )
 	distances = np.sqrt((R*a)**2 + ddep**2)
+
+	return distances
+
+def calculate_distances(lats,lons,deps,ref_lat,ref_lon,ref_dep):
+	"""
+	Calculates the distances using first:
+	a spherical to cartesian coordinate conversion
+	and then the L2-norm
+	"""
+	R    = 6371 # km
+	ref_dep = R - ref_dep 
+
+	x_ref = ref_dep*np.sin(np.radians(90-ref_lat))*np.cos(np.radians(ref_lon))
+	y_ref = ref_dep*np.sin(np.radians(90-ref_lat))*np.sin(np.radians(ref_lon))
+	z_ref = ref_dep*np.cos(np.radians(90-ref_lat))
+	
+	x_ = (R-deps)*np.sin(np.radians(90-lats))*np.cos(np.radians(lons))
+	y_ = (R-deps)*np.sin(np.radians(90-lats))*np.sin(np.radians(lons))
+	z_ = (R-deps)*np.cos(np.radians(90-lats))
+
+	distances = np.sqrt((x_ - x_ref)**2 + (y_ - y_ref)**2 + (z_ - z_ref)**2)
 
 	return distances
 
